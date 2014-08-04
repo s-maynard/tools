@@ -4,18 +4,22 @@
 # autotools file generator
 # 
 
+use File::Spec;
 use strict;
+use warnings;
 
 package FileWriter;
 
 sub new {
     my $class = shift;
     my($name, $path) = @_;
+    my $incdir = "";
     my $this = {};
     $this->{name} = $name;
     $this->{path} = $path;
     $this->{files} = ();
     $this->{dirs} = ();
+    $this->{incdir} = $incdir;
     return bless $this, $class;
 }
 
@@ -29,6 +33,12 @@ sub addDir {
     my $this = shift;
     my ($dir) = @_;
     push(@{$this->{dirs}}, $dir);
+}
+
+sub setIncDir {
+    my $this = shift;
+    my ($dir) = @_;
+    $this->{incdir} = $dir;
 }
 
 sub output {
@@ -53,12 +63,17 @@ sub output {
 
     if($this->hasFile()) {
         $doc .= "noinst_LTLIBRARIES=$name\n";
+
+        if($this->hasIncDir()) {
+            $doc .= "${tagname}_CPPFLAGS= -I " . $this->getIncfilePath() . "\n";
+        }
+
         $doc .= "${tagname}_SOURCES=@$files\n";
     }
 
-    open(file, "> $makefile");
-    print file $doc;
-    close file;
+    open(FILE, "> $makefile");
+    print FILE $doc;
+    close FILE;
 }
 
 sub isValid {
@@ -68,12 +83,20 @@ sub isValid {
 
 sub getLibPath {
     my $this = shift;
-    return "$this->{path}/" . $this->getLibName();
+    my $path = File::Spec->canonpath($this->{path});
+    return "$path/" . $this->getLibName();
+}
+
+sub getIncfilePath {
+    my $this = shift;
+    my $path = File::Spec->canonpath($this->{path});
+    return "\$(top_builddir)/$path/$this->{incdir}";
 }
 
 sub getMakefilePath {
     my $this = shift;
-    return "$this->{path}/Makefile";
+    my $path = File::Spec->canonpath($this->{path});
+    return "$path/Makefile";
 }
 
 sub hasLib {
@@ -93,6 +116,11 @@ sub hasDir {
     return ($#$dirs >= 0);
 }
 
+sub hasIncDir {
+    my $this = shift;
+    return $this->{incdir} ne "";
+}
+
 sub getLibName {
     my $this = shift;
     my $name = "$this->{name}";
@@ -108,7 +136,8 @@ sub isRoot {
 
 package main;
 
-@main::excludes = ("include");
+@main::includes = ("include");
+@main::excludes = ("config");
 @main::extensions = ("c");
 $main::cfgfilename = "configure.ac";
 
@@ -211,6 +240,12 @@ sub recurse {
         }
 
         if(contains(\@main::excludes, $file)) {
+            next;
+        }
+
+        if(contains(\@main::includes, $file)) {
+            $writer->setIncDir($file);
+            #print "\nfound " . $writer->getIncfilePath() . "\n";
             next;
         }
 
