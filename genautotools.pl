@@ -4,6 +4,8 @@
 # autotools file generator
 # 
 
+use Cwd;
+use File::Basename;
 use File::Spec;
 use strict;
 use warnings;
@@ -13,13 +15,12 @@ package FileWriter;
 sub new {
     my $class = shift;
     my($name, $path) = @_;
-    my $incdir = "";
     my $this = {};
+    $this->{extra_tag} = $main::invokedir . "_";
     $this->{name} = $name;
     $this->{path} = $path;
     $this->{files} = ();
     $this->{dirs} = ();
-    $this->{incdir} = $incdir;
     return bless $this, $class;
 }
 
@@ -35,10 +36,12 @@ sub addDir {
     push(@{$this->{dirs}}, $dir);
 }
 
-sub setIncDir {
+sub addIncDir {
     my $this = shift;
-    my ($dir) = @_;
-    $this->{incdir} = $dir;
+    my ($file) = @_;
+    my ($dir) = File::Spec->canonpath($this->{path}) . "/" . $file;
+    #print "\nadding $dir\n";
+    push(@{$main::incdirs}, $dir);
 }
 
 sub output {
@@ -46,10 +49,11 @@ sub output {
     my $files = $this->{files};
     my $dirs = $this->{dirs};
     my $makefile = "$this->{path}/Makefile.am";
+    my $includes = "";
     my $doc;
 
     if($this->hasDir()) {
-        $doc .= "SUBDIRS=@$dirs\n";
+        $doc .= "SUBDIRS = @$dirs\n";
     } else {
         $doc .= "AM_CFLAGS =";
         $doc .= "\nAM_CPPFLAGS = -Wall -Werror";
@@ -62,13 +66,19 @@ sub output {
     $tagname =~ s/\./_/g;
 
     if($this->hasFile()) {
-        $doc .= "noinst_LTLIBRARIES=$name\n";
+        $doc .= "noinst_LTLIBRARIES = $name\n";
+        $doc .= "${tagname}dir = \$(top_builddir)/source/$main::invokedir/.libs\n";
 
-        if($this->hasIncDir()) {
-            $doc .= "${tagname}_CPPFLAGS= -I " . $this->getIncfilePath() . "\n";
+        if(main::haveIncDirs()) {
+            foreach (@$main::incdirs) {
+                $includes .= " -I\$(top_builddir)/source/$main::invokedir/$_"
+            }
+
+            $doc .= "${tagname}_CPPFLAGS =" . $includes . " \$(CPPFLAGS)\n";
         }
 
-        $doc .= "${tagname}_SOURCES=@$files\n";
+        $doc .= "${tagname}_SOURCES = @$files\n";
+        $doc .= "${tagname}_LDFLAGS = \n";
     }
 
     open(FILE, "> $makefile");
@@ -116,16 +126,11 @@ sub hasDir {
     return ($#$dirs >= 0);
 }
 
-sub hasIncDir {
-    my $this = shift;
-    return $this->{incdir} ne "";
-}
-
 sub getLibName {
     my $this = shift;
     my $name = "$this->{name}";
     $name =~ s/\./_/g;
-    return "lib${name}.la";
+    return "lib$this->{extra_tag}${name}.la";
 }
 
 sub isRoot {
@@ -136,10 +141,12 @@ sub isRoot {
 
 package main;
 
+@main::incdirs = ();
 @main::includes = ("include");
 @main::excludes = ("config");
 @main::extensions = ("c");
 $main::cfgfilename = "configure.ac";
+$main::invokedir = basename(Cwd::realpath(File::Spec->curdir()));
 
 if (-e $main::cfgfilename) {
     print "\n\7\n$main::cfgfilename exists - exiting\n\n";
@@ -179,7 +186,7 @@ print CFG "#                                              -*- Autoconf -*-";
 print CFG "\n# Process this file with autoconf to produce configure script.";
 print CFG "\n#\n";
 print CFG "\nAC_PREREQ([2.65])";
-print CFG "\nAC_INIT([ccsp_common], [1.0], [BUG-REPORT-ADDRESS])";
+print CFG "\nAC_INIT([$main::invokedir], [1.0], [BUG-REPORT-ADDRESS])";
 print CFG "\nAM_INIT_AUTOMAKE";
 print CFG "\nLT_INIT";
 print CFG "\n";
@@ -244,8 +251,7 @@ sub recurse {
         }
 
         if(contains(\@main::includes, $file)) {
-            $writer->setIncDir($file);
-            #print "\nfound " . $writer->getIncfilePath() . "\n";
+            $writer->addIncDir($file);
             next;
         }
 
@@ -292,5 +298,11 @@ sub contains($$) {
     }
 
     return 0;
+}
+
+sub haveIncDirs {
+    my $dirs = $main::incdirs;
+    #print "\nnumber of includes: $#$dirs";
+    return ($#$dirs >= 0);
 }
 
