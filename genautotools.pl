@@ -56,7 +56,7 @@ sub output {
     if($this->hasDir()) {
         $doc .= "SUBDIRS = @$dirs\n";
     } else {
-        $doc .= "AM_CFLAGS =";
+        $doc .= "AM_CFLAGS = -D_ANSC_LINUX";
         $doc .= "\nAM_CPPFLAGS = -Wall -Werror";
         $doc .= "\nACLOCAL_AMFLAGS = -I m4";
         $doc .= "\nhardware_platform = i686-linux-gnu\n";
@@ -145,7 +145,7 @@ sub isRoot {
 package main;
 
 @main::incdirs = ();
-@main::includes = ("include");
+@main::includes = ("include","custom");
 @main::excludes = ("config");
 @main::extensions = ("c");
 $main::cfgfilename = "configure.ac";
