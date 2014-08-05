@@ -49,6 +49,7 @@ sub output {
     my $files = $this->{files};
     my $dirs = $this->{dirs};
     my $makefile = "$this->{path}/Makefile.am";
+    my $os = "linux";
     my $includes = "";
     my $doc;
 
@@ -67,11 +68,13 @@ sub output {
 
     if($this->hasFile()) {
         $doc .= "noinst_LTLIBRARIES = $name\n";
-        $doc .= "${tagname}dir = \$(top_builddir)/source/$main::invokedir/.libs\n";
+        #$doc .= "${tagname}dir = \$(top_builddir)/source/$main::invokedir/.libs\n";
+        $doc .= "${tagname}dir = \$(top_builddir)/.libs\n";
 
         if(main::haveIncDirs()) {
             foreach (@$main::incdirs) {
-                $includes .= " -I\$(top_builddir)/source/$main::invokedir/$_"
+                #$includes .= " -I\$(top_builddir)/source/$main::invokedir/$_"
+                $includes .= " -I\$(top_builddir)/$_"
             }
 
             $doc .= "${tagname}_CPPFLAGS =" . $includes . " \$(CPPFLAGS)\n";
