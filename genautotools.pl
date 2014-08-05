@@ -5,10 +5,15 @@
 # 
 
 use Cwd;
+use Env;
 use File::Basename;
 use File::Spec;
 use strict;
 use warnings;
+
+use Env qw(HOME);
+use lib "$HOME/perl5/lib/perl5";
+use Config::Simple;
 
 package FileWriter;
 
@@ -68,12 +73,10 @@ sub output {
 
     if($this->hasFile()) {
         $doc .= "noinst_LTLIBRARIES = $name\n";
-        #$doc .= "${tagname}dir = \$(top_builddir)/source/$main::invokedir/.libs\n";
         $doc .= "${tagname}dir = \$(top_builddir)/.libs\n";
 
         if(main::haveIncDirs()) {
             foreach (@$main::incdirs) {
-                #$includes .= " -I\$(top_builddir)/source/$main::invokedir/$_"
                 $includes .= " -I\$(top_builddir)/$_"
             }
 
@@ -155,6 +158,37 @@ if (-e $main::cfgfilename) {
     print "\n\7\n$main::cfgfilename exists - exiting\n\n";
     exit -1;
 }
+
+$main::cfg = new Config::Simple("genautotools.ini");
+
+if ($main::cfg) {
+    print "\nReading ini file for genautotools\n";
+
+    if ($main::string = $main::cfg->param("incdirs")) {
+        print "- adding " . $main::string . " to incdirs\n";
+        push(@$main::incdirs, $main::string);
+    }
+
+    if ($main::string = $main::cfg->param("includes")) {
+        print "- adding " . $main::string . " to includes\n";
+        push(@$main::includes, $main::string);
+    }
+
+    if ($main::string = $main::cfg->param("excludes")) {
+        print "- adding " . $main::string . " to excludes\n";
+        push(@$main::excludes, $main::string);
+    }
+
+    if ($main::string = $main::cfg->param("extensions")) {
+        print "- adding " . $main::string . " to extensions\n";
+        push(@$main::extensions, $main::string);
+    }
+}
+
+#print "incdirs: " . @$main::incdirs . "\n";
+#print "includes: " . @$main::includes . "\n";
+#print "excludes: " . @$main::excludes . "\n";
+#print "extensions: " . @$main::extensions . "\n";
 
 open(AGEN, "> autogen.sh");
 print AGEN "#!/bin/sh";
