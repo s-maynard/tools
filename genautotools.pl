@@ -46,7 +46,7 @@ sub addIncDir {
     my ($file) = @_;
     my ($dir) = File::Spec->canonpath($this->{path}) . "/" . $file;
     #print "\nadding $dir\n";
-    push(@{$main::incdirs}, $dir);
+    push(@{main::incdirs}, $dir);
 }
 
 sub output {
@@ -61,7 +61,19 @@ sub output {
     if($this->hasDir()) {
         $doc .= "SUBDIRS = @$dirs\n";
     } else {
-        $doc .= "AM_CFLAGS = -D_ANSC_LINUX";
+        my $count = 0;
+
+        if(@main::am_cflags) {
+            foreach (@main::am_cflags) {
+                if ($count == 0) {
+                    $doc .= "AM_CFLAGS = $_\n";
+                } else {
+                    $doc .= "AM_CFLAGS += $_\n";
+                }
+                $count++;
+            }
+        }
+
         $doc .= "\nAM_CPPFLAGS = -Wall -Werror";
         $doc .= "\nACLOCAL_AMFLAGS = -I m4";
         $doc .= "\nhardware_platform = i686-linux-gnu\n";
@@ -76,13 +88,12 @@ sub output {
         $doc .= "${tagname}dir = \$(top_builddir)/.libs\n";
 
         if(main::haveIncDirs()) {
-            foreach (@$main::incdirs) {
+            foreach (@main::incdirs) {
                 $includes .= " -I\$(top_builddir)/$_"
             }
-
-            $doc .= "${tagname}_CPPFLAGS =" . $includes . " \$(CPPFLAGS)\n";
         }
 
+        $doc .= "${tagname}_CPPFLAGS =" . $includes . " \$(CPPFLAGS)\n";
         $doc .= "${tagname}_SOURCES = @$files\n";
         $doc .= "${tagname}_LDFLAGS = \n";
     }
@@ -148,9 +159,16 @@ sub isRoot {
 package main;
 
 @main::incdirs = ();
-@main::includes = ("include","custom");
-@main::excludes = ("config");
-@main::extensions = ("c");
+@main::includes = ();
+@main::excludes = ();
+@main::extensions = ();
+@main::am_cflags = ();
+@main::ac_progs = ();
+@main::am_progs = ();
+@main::ac_types = ();
+@main::ac_funcs = ();
+@main::pkg_check_modules = ();
+$main::libname = "your_name_goes_here";
 $main::cfgfilename = "configure.ac";
 $main::invokedir = basename(Cwd::realpath(File::Spec->curdir()));
 
@@ -159,57 +177,8 @@ if (-e $main::cfgfilename) {
     exit -1;
 }
 
-$main::cfg = new Config::Simple("genautotools.ini");
-
-if ($main::cfg) {
-    print "\nReading ini file for genautotools\n";
-
-    if ($main::string = $main::cfg->param("incdirs")) {
-        print "- adding " . $main::string . " to incdirs\n";
-        push(@$main::incdirs, $main::string);
-    }
-
-    if ($main::string = $main::cfg->param("includes")) {
-        print "- adding " . $main::string . " to includes\n";
-        push(@$main::includes, $main::string);
-    }
-
-    if ($main::string = $main::cfg->param("excludes")) {
-        print "- adding " . $main::string . " to excludes\n";
-        push(@$main::excludes, $main::string);
-    }
-
-    if ($main::string = $main::cfg->param("extensions")) {
-        print "- adding " . $main::string . " to extensions\n";
-        push(@$main::extensions, $main::string);
-    }
-}
-
-#print "incdirs: " . @$main::incdirs . "\n";
-#print "includes: " . @$main::includes . "\n";
-#print "excludes: " . @$main::excludes . "\n";
-#print "extensions: " . @$main::extensions . "\n";
-
-open(AGEN, "> autogen.sh");
-print AGEN "#!/bin/sh";
-print AGEN "\n# Run this to generate all the initial makefiles, etc.";
-print AGEN "\n#";
-print AGEN "\ntest -n \"\$srcdir\" || srcdir=`dirname \$0`";
-print AGEN "\ntest -n \"\$srcdir\" || srcdir=.";
-print AGEN "\nolddir=`pwd`";
-print AGEN "\ncd \$srcdir";
-print AGEN "\nAUTORECONF=`which autoreconf`";
-print AGEN "\n";
-print AGEN "\nif test -z \$AUTORECONF; then";
-print AGEN "\n\techo '*** no autoreconf found. please install it ***'";
-print AGEN "\n\texit 1";
-print AGEN "\nfi";
-print AGEN "\nautoreconf --force --install --verbose || exit \$?";
-print AGEN "\ncd \$olddir || exit \$?";
-print AGEN "\ntest -n \"\$NOCONFIGURE\" || \"\$srcdir/configure\" \"\$\@\"";
-print AGEN "\n";
-close(AGEN);
-qx(chmod a+x autogen.sh);
+read_ini();
+write_autogen_sh();
 
 my @writers = ();
 recurse(\@writers, "", ".");
@@ -218,57 +187,9 @@ foreach my $writer(@writers) {
     $writer->output();
 }
 
-open(CFG, "> configure.ac");
-print CFG "#                                              -*- Autoconf -*-";
-print CFG "\n# Process this file with autoconf to produce configure script.";
-print CFG "\n#\n";
-print CFG "\nAC_PREREQ([2.65])";
-print CFG "\nAC_INIT([$main::invokedir], [1.0], [BUG-REPORT-ADDRESS])";
-print CFG "\nAM_INIT_AUTOMAKE";
-print CFG "\nLT_INIT";
-print CFG "\n";
-print CFG "\nAC_CONFIG_HEADERS([config.h])";
-print CFG "\nAC_CONFIG_MACRO_DIR([m4])";
-print CFG "\n";
-print CFG "\n# Checks for programs.";
-print CFG "\nAC_PROG_CC";
-print CFG "\nAC_PROG_INSTALL";
-print CFG "\nAM_PROG_CC_C_O";
-print CFG "\n";
-print CFG "\n# Checks for header files.";
-print CFG "\nAC_CHECK_HEADERS([stdlib.h string.h unistd.h])";
-print CFG "\n";
-print CFG "\n# Checks for typedefs, structures, and compiler characteristics.";
-print CFG "\nAC_HEADER_STDBOOL";
-print CFG "\nAC_C_INLINE";
-print CFG "\nAC_TYPE_INT64_T";
-print CFG "\nAC_TYPE_SIZE_T";
-print CFG "\nAC_TYPE_UINT16_T";
-print CFG "\nAC_TYPE_UINT32_T";
-print CFG "\nAC_TYPE_UINT64_T";
-print CFG "\nAC_TYPE_UINT8_T";
-print CFG "\n";
-print CFG "\n# Checks for library functions.";
-print CFG "\nAC_FUNC_MALLOC";
-print CFG "\n";
-print CFG "\nAC_CONFIG_FILES(\n";
+write_configure_ac(\@writers);
+append_main_makefile_am(\@writers);
 
-foreach my $writer(@writers) {
-    print CFG "\t" . $writer->getMakefilePath() . "\n";
-}
-
-print CFG ")\n";
-
-print CFG "#\n# LIBS:\n";
-foreach my $writer(@writers) {
-    if($writer->hasLib()) {
-        print CFG "#\t" . $writer->getLibPath() . " \\\n";
-    }
-}
-
-print CFG "\nAC_OUTPUT\n";
-print CFG "\n";
-close(CFG);
 
 sub recurse {
     my ($writers, $name, $path) = @_;
@@ -338,8 +259,214 @@ sub contains($$) {
 }
 
 sub haveIncDirs {
-    my $dirs = $main::incdirs;
-    #print "\nnumber of includes: $#$dirs";
-    return ($#$dirs >= 0);
+    return (@main::incdirs);
+}
+
+sub write_autogen_sh {
+    open(AGEN, "> autogen.sh");
+    print AGEN "#!/bin/sh";
+    print AGEN "\n# Run this to generate all the initial makefiles, etc.";
+    print AGEN "\n#";
+    print AGEN "\ntest -n \"\$srcdir\" || srcdir=`dirname \$0`";
+    print AGEN "\ntest -n \"\$srcdir\" || srcdir=.";
+    print AGEN "\nolddir=`pwd`";
+    print AGEN "\ncd \$srcdir";
+    print AGEN "\nAUTORECONF=`which autoreconf`";
+    print AGEN "\n";
+    print AGEN "\nif test -z \$AUTORECONF; then";
+    print AGEN "\n\techo '*** no autoreconf found. please install it ***'";
+    print AGEN "\n\texit 1";
+    print AGEN "\nfi";
+    print AGEN "\nautoreconf --force --install --verbose || exit \$?";
+    print AGEN "\ncd \$olddir || exit \$?";
+    print AGEN "\ntest -n \"\$NOCONFIGURE\" || \"\$srcdir/configure\" \"\$\@\"";
+    print AGEN "\n";
+    close(AGEN);
+    qx(chmod a+x autogen.sh);
+}
+
+sub write_configure_ac {
+    my ($writers) = @_;
+    open(CFG, "> configure.ac");
+    print CFG "#                                              -*- Autoconf -*-";
+    print CFG "\n# Process this file with autoconf to produce configure script.";
+    print CFG "\n#\n";
+    print CFG "\nAC_PREREQ([2.65])";
+    print CFG "\nAC_INIT([$main::libname], [1.0], [BUG-REPORT-ADDRESS])";
+    print CFG "\nAM_INIT_AUTOMAKE";
+    print CFG "\nLT_INIT";
+    print CFG "\n";
+    print CFG "\nAC_ENABLE_SHARED";
+    print CFG "\nAC_DISABLE_STATIC";
+    print CFG "\n";
+    print CFG "\nAC_CONFIG_HEADERS([config.h])";
+    print CFG "\nAC_CONFIG_MACRO_DIR([m4])";
+    print CFG "\n";
+    print CFG "\n# Checks for programs.";
+
+    if(@main::ac_progs) {
+        foreach (@main::ac_progs) {
+            print CFG "\nAC_PROG_$_";
+        }
+    }
+
+    if(@main::am_progs) {
+        foreach (@main::am_progs) {
+            print CFG "\nAM_PROG_$_";
+        }
+    }
+
+    print CFG "\n\n# Checks for header files.";
+    print CFG "\nAC_CHECK_HEADERS([stdlib.h string.h unistd.h])";
+    print CFG "\n";
+    print CFG "\n# Checks for typedefs, structures, and compiler characteristics.";
+    print CFG "\nAC_HEADER_STDBOOL";
+    print CFG "\nAC_C_INLINE";
+
+    if(@main::ac_types) {
+        foreach (@main::ac_types) {
+            print CFG "\nAC_TYPE_$_";
+        }
+    }
+
+    print CFG "\n\n# Checks for library functions.";
+
+    if(@main::ac_funcs) {
+        foreach (@main::ac_funcs) {
+            print CFG "\nAC_FUNC_$_";
+        }
+    }
+
+    if(@main::pkg_check_modules) {
+        foreach (@main::pkg_check_modules) {
+            print CFG "\nPKG_CHECK_MODULES($_)";
+        }
+    }
+
+    print CFG "\n";
+    print CFG "\nAC_CONFIG_FILES(\n";
+
+    foreach my $writer(@writers) {
+        print CFG "\t" . $writer->getMakefilePath() . "\n";
+    }
+
+    print CFG ")\n\n";
+    print CFG "\nAC_OUTPUT\n";
+    print CFG "\n";
+    close(CFG);
+}
+
+sub append_main_makefile_am {
+    my ($writers) = @_;
+    open(MFILE, ">> Makefile.am");
+    print MFILE "\nlib_LTLIBRARIES=lib$main::libname.la";
+    print MFILE "\nlib" . $main::libname . "_la_LDFLAGS= -shared -fPIC";
+    print MFILE "\nlib" . $main::libname . "_la_SOURCES=";
+
+    foreach my $writer(@writers) {
+        if($writer->hasLib()) {
+            print MFILE " \\\n\t" . $writer->getLibPath();
+        }
+    }
+
+    print MFILE "\n\n";
+    close(MFILE);
+}
+
+sub read_ini {
+    my $cfg = new Config::Simple("genautotools.ini");
+
+    if ($cfg) {
+        print "\nReading ini file for genautotools\n";
+
+        if (my @string = $cfg->param("incdirs")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to incdirs\n";
+                push(@main::incdirs, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("includes")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to includes\n";
+                push(@main::includes, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("excludes")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to excludes\n";
+                push(@main::excludes, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("extensions")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to extensions\n";
+                push(@main::extensions, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("am_cflags")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to am_cflags\n";
+                push(@main::am_cflags, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("ac_progs")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to ac_progs\n";
+                push(@main::ac_progs, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("am_progs")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to am_progs\n";
+                push(@main::am_progs, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("ac_types")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to ac_types\n";
+                push(@main::ac_types, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("ac_funcs")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to ac_funcs\n";
+                push(@main::ac_funcs, $_);
+            }
+        }
+
+        if (my $string = $cfg->param("libname")) {
+            print "- setting $string as libname\n";
+            $main::libname = $string
+        }
+
+        if (my @string = $cfg->param("pkg_check_modules")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to pkg_check_modules\n";
+                push(@main::pkg_check_modules, $_);
+            }
+        }
+
+        #print "incdirs: ", $_, "\n" foreach @main::incdirs;
+        #print "includes: ",  $_, "\n" foreach @main::includes;
+        #print "excludes: ",  $_, "\n" foreach @main::excludes;
+        #print "extensions: ",  $_, "\n" foreach @main::extensions;
+        #print "am_cflags: ",  $_, "\n" foreach @main::am_cflags;
+        #print "ac_progs: ",  $_, "\n" foreach @main::ac_progs;
+        #print "am_progs: ",  $_, "\n" foreach @main::am_progs;
+        #print "ac_types: ",  $_, "\n" foreach @main::ac_types;
+        #print "ac_funcs: ",  $_, "\n" foreach @main::ac_funcs;
+        #print "pkg_check_modules: ",  $_, "\n" foreach @main::pkg_check_modules;
+        return 1;
+    }
+
+    return 0;
 }
 
