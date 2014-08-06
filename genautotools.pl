@@ -46,7 +46,7 @@ sub addIncDir {
     my ($file) = @_;
     my ($dir) = File::Spec->canonpath($this->{path}) . "/" . $file;
     #print "\nadding $dir\n";
-    push(@{$main::incdirs}, $dir);
+    push(@{main::incdirs}, $dir);
 }
 
 sub output {
@@ -90,13 +90,12 @@ sub output {
         $doc .= "${tagname}dir = \$(top_builddir)/.libs\n";
 
         if(main::haveIncDirs()) {
-            foreach (@$main::incdirs) {
+            foreach (@main::incdirs) {
                 $includes .= " -I\$(top_builddir)/$_"
             }
-
-            $doc .= "${tagname}_CPPFLAGS =" . $includes . " \$(CPPFLAGS)\n";
         }
 
+        $doc .= "${tagname}_CPPFLAGS =" . $includes . " \$(CPPFLAGS)\n";
         $doc .= "${tagname}_SOURCES = @$files\n";
         $doc .= "${tagname}_LDFLAGS = \n";
     }
@@ -162,9 +161,9 @@ sub isRoot {
 package main;
 
 @main::incdirs = ();
-@main::includes = ("include","custom","PoamIrepFolder");
-@main::excludes = ("config","SysSetupManager","SysIroV2","SysCtlvProcessor");
-@main::extensions = ("c");
+@main::includes = ();
+@main::excludes = ();
+@main::extensions = ();
 $main::cfgfilename = "configure.ac";
 $main::invokedir = basename(Cwd::realpath(File::Spec->curdir()));
 
@@ -173,37 +172,7 @@ if (-e $main::cfgfilename) {
     exit -1;
 }
 
-$main::cfg = new Config::Simple("genautotools.ini");
-
-if ($main::cfg) {
-    print "\nReading ini file for genautotools\n";
-
-    if ($main::string = $main::cfg->param("incdirs")) {
-        print "- adding " . $main::string . " to incdirs\n";
-        push(@$main::incdirs, $main::string);
-    }
-
-    if ($main::string = $main::cfg->param("includes")) {
-        print "- adding " . $main::string . " to includes\n";
-        push(@$main::includes, $main::string);
-    }
-
-    if ($main::string = $main::cfg->param("excludes")) {
-        print "- adding " . $main::string . " to excludes\n";
-        push(@$main::excludes, $main::string);
-    }
-
-    if ($main::string = $main::cfg->param("extensions")) {
-        print "- adding " . $main::string . " to extensions\n";
-        push(@$main::extensions, $main::string);
-    }
-}
-
-#print "incdirs: " . @$main::incdirs . "\n";
-#print "includes: " . @$main::includes . "\n";
-#print "excludes: " . @$main::excludes . "\n";
-#print "extensions: " . @$main::extensions . "\n";
-
+readini();
 open(AGEN, "> autogen.sh");
 print AGEN "#!/bin/sh";
 print AGEN "\n# Run this to generate all the initial makefiles, etc.";
@@ -231,6 +200,8 @@ recurse(\@writers, "", ".");
 foreach my $writer(@writers) {
     $writer->output();
 }
+
+#print "incdirs: ", $_, "\n" foreach @main::incdirs;
 
 open(CFG, "> configure.ac");
 print CFG "#                                              -*- Autoconf -*-";
@@ -364,8 +335,50 @@ sub contains($$) {
 }
 
 sub haveIncDirs {
-    my $dirs = $main::incdirs;
-    #print "\nnumber of includes: $#$dirs";
-    return ($#$dirs >= 0);
+    return (@main::incdirs);
+}
+
+sub readini {
+    my $cfg = new Config::Simple("genautotools.ini");
+
+    if ($cfg) {
+        print "\nReading ini file for genautotools\n";
+
+        if (my @string = $cfg->param("incdirs")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to incdirs\n";
+                push(@main::incdirs, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("includes")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to includes\n";
+                push(@main::includes, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("excludes")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to excludes\n";
+                push(@main::excludes, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("extensions")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to extensions\n";
+                push(@main::extensions, $_);
+            }
+        }
+
+        #print "incdirs: ", $_, "\n" foreach @main::incdirs;
+        #print "includes: ",  $_, "\n" foreach @main::includes;
+        #print "excludes: ",  $_, "\n" foreach @main::excludes;
+        #print "extensions: ",  $_, "\n" foreach @main::extensions;
+        return 1;
+    }
+
+    return 0;
 }
 
