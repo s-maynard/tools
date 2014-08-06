@@ -54,7 +54,6 @@ sub output {
     my $files = $this->{files};
     my $dirs = $this->{dirs};
     my $makefile = "$this->{path}/Makefile.am";
-    my $os = "linux";
     my $includes = "";
     my $doc;
 
@@ -74,6 +73,19 @@ sub output {
             }
         }
 
+        $count = 0;
+
+        if(@main::am_ldflags) {
+            foreach (@main::am_ldflags) {
+                if ($count == 0) {
+                    $doc .= "AM_LDFLAGS = $_\n";
+                } else {
+                    $doc .= "AM_LDFLAGS += $_\n";
+                }
+                $count++;
+            }
+        }
+
         $doc .= "\nAM_CPPFLAGS = -Wall -Werror";
         $doc .= "\nACLOCAL_AMFLAGS = -I m4";
         $doc .= "\nhardware_platform = i686-linux-gnu\n";
@@ -84,8 +96,13 @@ sub output {
     $tagname =~ s/\./_/g;
 
     if($this->hasFile()) {
-        $doc .= "noinst_LTLIBRARIES = $name\n";
-        $doc .= "${tagname}dir = \$(top_builddir)/.libs\n";
+        if((my $index = main::contains(\@main::exedirs, $this->{name})) != -1) {
+            $tagname = $main::exenames[$index];
+            $doc .= "bin_PROGRAMS = $tagname\n";
+        } else {
+            $doc .= "noinst_LTLIBRARIES = $name\n";
+            $doc .= "${tagname}dir = \$(top_builddir)/.libs\n";
+        }
 
         if(main::haveIncDirs()) {
             foreach (@main::incdirs) {
@@ -163,11 +180,14 @@ sub isRoot {
 
 package main;
 
+@main::exedirs = ();
+@main::exenames = ();
 @main::incdirs = ();
 @main::includes = ();
 @main::excludes = ();
 @main::extensions = ();
 @main::am_cflags = ();
+@main::am_ldflags = ();
 @main::ac_progs = ();
 @main::am_progs = ();
 @main::ac_types = ();
@@ -192,7 +212,10 @@ foreach my $writer(@writers) {
 }
 
 write_configure_ac(\@writers);
-append_main_makefile_am(\@writers);
+
+if ($main::libname ne "your_name_goes_here") {
+    append_main_makefile_am(\@writers);
+}
 
 
 sub recurse {
@@ -208,11 +231,11 @@ sub recurse {
             next;
         }
 
-        if(contains(\@main::excludes, $file)) {
+        if(contains(\@main::excludes, $file) != -1) {
             next;
         }
 
-        if(contains(\@main::includes, $file)) {
+        if(contains(\@main::includes, $file) != -1) {
             $writer->addIncDir($file);
             next;
         }
@@ -252,14 +275,16 @@ sub hasExtension {
 
 sub contains($$) {
     my($array, $target) = @_;
+    my $index = 0;
 
     foreach (@$array) {
         if($_ eq $target) {
-            return 1;
+            return $index;
         }
+        $index++;
     }
 
-    return 0;
+    return -1;
 }
 
 sub haveIncDirs {
@@ -296,7 +321,13 @@ sub write_configure_ac {
     print CFG "\n# Process this file with autoconf to produce configure script.";
     print CFG "\n#\n";
     print CFG "\nAC_PREREQ([2.65])";
-    print CFG "\nAC_INIT([$main::libname], [1.0], [BUG-REPORT-ADDRESS])";
+
+    if ($main::libname ne "your_name_goes_here") {
+        print CFG "\nAC_INIT([$main::libname], [1.0], [BUG-REPORT-ADDRESS])";
+    } else {
+        print CFG "\nAC_INIT([$main::invokedir], [1.0], [BUG-REPORT-ADDRESS])";
+    }
+
     print CFG "\nAM_INIT_AUTOMAKE";
     print CFG "\nLT_INIT";
     print CFG "\n";
@@ -384,6 +415,20 @@ sub read_ini {
     if ($cfg) {
         print "\nReading ini file for genautotools\n";
 
+        if (my @string = $cfg->param("exedirs")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to exedirs\n";
+                push(@main::exedirs, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("exenames")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to exenames\n";
+                push(@main::exenames, $_);
+            }
+        }
+
         if (my @string = $cfg->param("incdirs")) {
             foreach (@string) {
                 print "- adding " . $_ . " to incdirs\n";
@@ -416,6 +461,13 @@ sub read_ini {
             foreach (@string) {
                 print "- adding " . $_ . " to am_cflags\n";
                 push(@main::am_cflags, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("am_ldflags")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to am_ldflags\n";
+                push(@main::am_ldflags, $_);
             }
         }
 
@@ -459,11 +511,14 @@ sub read_ini {
             }
         }
 
+        #print "exedirs: ", $_, "\n" foreach @main::exedirs;
+        #print "exenames: ", $_, "\n" foreach @main::exenames;
         #print "incdirs: ", $_, "\n" foreach @main::incdirs;
         #print "includes: ",  $_, "\n" foreach @main::includes;
         #print "excludes: ",  $_, "\n" foreach @main::excludes;
         #print "extensions: ",  $_, "\n" foreach @main::extensions;
         #print "am_cflags: ",  $_, "\n" foreach @main::am_cflags;
+        #print "am_ldflags: ",  $_, "\n" foreach @main::am_ldflags;
         #print "ac_progs: ",  $_, "\n" foreach @main::ac_progs;
         #print "am_progs: ",  $_, "\n" foreach @main::am_progs;
         #print "ac_types: ",  $_, "\n" foreach @main::ac_types;
