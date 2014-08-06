@@ -123,7 +123,12 @@ sub getIncfilePath {
 sub getMakefilePath {
     my $this = shift;
     my $path = File::Spec->canonpath($this->{path});
-    return "$path/Makefile";
+
+    if ($path eq ".") {
+        return "Makefile";
+    } else {
+        return "$path/Makefile";
+    }
 }
 
 sub hasLib {
@@ -169,11 +174,10 @@ package main;
 @main::ac_funcs = ();
 @main::pkg_check_modules = ();
 $main::libname = "your_name_goes_here";
-$main::cfgfilename = "configure.ac";
 $main::invokedir = basename(Cwd::realpath(File::Spec->curdir()));
 
-if (-e $main::cfgfilename) {
-    print "\n\7\n$main::cfgfilename exists - exiting\n\n";
+if (-e "configure.ac") {
+    print "\n\7\nconfigure.ac exists - exiting\n\n";
     exit -1;
 }
 
@@ -362,6 +366,7 @@ sub append_main_makefile_am {
     print MFILE "\nlib_LTLIBRARIES=lib$main::libname.la";
     print MFILE "\nlib" . $main::libname . "_la_LDFLAGS= -shared -fPIC";
     print MFILE "\nlib" . $main::libname . "_la_SOURCES=";
+    print MFILE "\nlib" . $main::libname . "_la_DEPENDENCIES=";
 
     foreach my $writer(@writers) {
         if($writer->hasLib()) {
@@ -369,7 +374,7 @@ sub append_main_makefile_am {
         }
     }
 
-    print MFILE "\n\n";
+    print MFILE "\n\nlib" . $main::libname . "_la_LIBADD=\$(lib" . $main::libname . "_la_DEPENDENCIES)\n";
     close(MFILE);
 }
 
