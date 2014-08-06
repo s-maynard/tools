@@ -61,7 +61,21 @@ sub output {
     if($this->hasDir()) {
         $doc .= "SUBDIRS = @$dirs\n";
     } else {
-        $doc .= "AM_CFLAGS = -D_ANSC_LINUX";
+        $doc .= "AM_CFLAGS = \$(DBUS_CFLAGS)\n";
+        $doc .= "AM_CFLAGS += -D_ANSC_LINUX\n";
+        $doc .= "AM_CFLAGS += -D_ANSC_USER\n";
+        $doc .= "AM_CFLAGS += -D_ANSC_LITTLE_ENDIAN_\n";
+        $doc .= "AM_CFLAGS += -D_NO_PKI_KB5_SUPPORT\n";
+        $doc .= "AM_CFLAGS += -D_ANSC_USE_OPENSSL_\n";
+        $doc .= "AM_CFLAGS += -D_ANSC_AES_USED_\n";
+        $doc .= "AM_CFLAGS += -D_CCSP_CWMP_TCP_CONNREQ_HANDLER\n";
+        $doc .= "AM_CFLAGS += -D_DSLH_STUN_\n";
+        $doc .= "AM_CFLAGS += -D_BBHM_SSE_FILE_IO\n";
+        $doc .= "AM_CFLAGS += -DENABLE_SA_KEY\n";
+        $doc .= "AM_CFLAGS += -D_ANSC_IPV6_COMPATIBLE_\n";
+        $doc .= "AM_CFLAGS += -DBUILD_WEB\n";
+        $doc .= "AM_CFLAGS += -D_COSA_SIM_\n";
+
         $doc .= "\nAM_CPPFLAGS = -Wall -Werror";
         $doc .= "\nACLOCAL_AMFLAGS = -I m4";
         $doc .= "\nhardware_platform = i686-linux-gnu\n";
@@ -148,8 +162,8 @@ sub isRoot {
 package main;
 
 @main::incdirs = ();
-@main::includes = ("include","custom");
-@main::excludes = ("config");
+@main::includes = ("include","custom","PoamIrepFolder");
+@main::excludes = ("config","SysSetupManager","SysIroV2","SysCtlvProcessor");
 @main::extensions = ("c");
 $main::cfgfilename = "configure.ac";
 $main::invokedir = basename(Cwd::realpath(File::Spec->curdir()));
@@ -227,6 +241,9 @@ print CFG "\nAC_INIT([$main::invokedir], [1.0], [BUG-REPORT-ADDRESS])";
 print CFG "\nAM_INIT_AUTOMAKE";
 print CFG "\nLT_INIT";
 print CFG "\n";
+print CFG "\nAC_ENABLE_SHARED";
+print CFG "\nAC_DISABLE_STATIC";
+print CFG "\n";
 print CFG "\nAC_CONFIG_HEADERS([config.h])";
 print CFG "\nAC_CONFIG_MACRO_DIR([m4])";
 print CFG "\n";
@@ -234,6 +251,7 @@ print CFG "\n# Checks for programs.";
 print CFG "\nAC_PROG_CC";
 print CFG "\nAC_PROG_INSTALL";
 print CFG "\nAM_PROG_CC_C_O";
+print CFG "\nAM_PROG_LIBTOOL(libtool)";
 print CFG "\n";
 print CFG "\n# Checks for header files.";
 print CFG "\nAC_CHECK_HEADERS([stdlib.h string.h unistd.h])";
@@ -250,6 +268,7 @@ print CFG "\nAC_TYPE_UINT8_T";
 print CFG "\n";
 print CFG "\n# Checks for library functions.";
 print CFG "\nAC_FUNC_MALLOC";
+print CFG "\nPKG_CHECK_MODULES([DBUS], [dbus-1 >= 1.0])";
 print CFG "\n";
 print CFG "\nAC_CONFIG_FILES(\n";
 
@@ -257,18 +276,25 @@ foreach my $writer(@writers) {
     print CFG "\t" . $writer->getMakefilePath() . "\n";
 }
 
-print CFG ")\n";
-
-print CFG "#\n# LIBS:\n";
-foreach my $writer(@writers) {
-    if($writer->hasLib()) {
-        print CFG "#\t" . $writer->getLibPath() . " \\\n";
-    }
-}
-
+print CFG ")\n\n";
 print CFG "\nAC_OUTPUT\n";
 print CFG "\n";
 close(CFG);
+
+open(MFILE, ">> Makefile.am");
+print MFILE "\nlib_LTLIBRARIES=libccsp_common.la";
+print MFILE "\nlibccsp_common_la_LDFLAGS= -shared -fPIC";
+print MFILE "\nlibccsp_common_la_SOURCES=";
+
+foreach my $writer(@writers) {
+    if($writer->hasLib()) {
+        print MFILE " \\\n\t" . $writer->getLibPath();
+    }
+}
+
+print MFILE "\n\n";
+close(MFILE);
+
 
 sub recurse {
     my ($writers, $name, $path) = @_;
