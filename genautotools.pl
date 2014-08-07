@@ -204,6 +204,9 @@ package main;
 @main::am_progs = ();
 @main::ac_types = ();
 @main::ac_funcs = ();
+@main::addlibs = ();
+@main::libflags = ();
+@main::libsources = ();
 @main::pkg_check_modules = ();
 $main::libname = "your_name_goes_here";
 $main::invokedir = basename(Cwd::realpath(File::Spec->curdir()));
@@ -407,9 +410,28 @@ sub append_main_makefile_am {
     my ($writers) = @_;
     open(MFILE, ">> Makefile.am");
     print MFILE "\nlib_LTLIBRARIES=lib$main::libname.la";
-    print MFILE "\nlib" . $main::libname . "_la_LDFLAGS= -shared -fPIC";
+    print MFILE "\nlib" . $main::libname . "_la_LDFLAGS=";
+
+    if(@main::libflags) {
+        foreach (@main::libflags) {
+            print MFILE " $_";
+        }
+    }
+
     print MFILE "\nlib" . $main::libname . "_la_SOURCES=";
+
+    if(@main::libsources) {
+        foreach (@main::libsources) {
+            print MFILE " \\\n\t" . $_;
+        }
+    }
     print MFILE "\nlib" . $main::libname . "_la_DEPENDENCIES=";
+
+    if(@main::addlibs) {
+        foreach (@main::addlibs) {
+            print MFILE " \\\n\t" . $_;
+        }
+    }
 
     foreach my $writer(@writers) {
         if($writer->hasLib()) {
@@ -516,6 +538,27 @@ sub read_ini {
             $main::libname = $string
         }
 
+        if (my @string = $cfg->param("addlibs")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to addlibs\n";
+                push(@main::addlibs, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("libflags")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to libflags\n";
+                push(@main::libflags, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("libsources")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to libsources\n";
+                push(@main::libsources, $_);
+            }
+        }
+
         if (my @string = $cfg->param("pkg_check_modules")) {
             foreach (@string) {
                 print "- adding " . $_ . " to pkg_check_modules\n";
@@ -535,6 +578,9 @@ sub read_ini {
         #print "am_progs: ",  $_, "\n" foreach @main::am_progs;
         #print "ac_types: ",  $_, "\n" foreach @main::ac_types;
         #print "ac_funcs: ",  $_, "\n" foreach @main::ac_funcs;
+        #print "addlibs: ",  $_, "\n" foreach @main::addlibs;
+        #print "libflags: ",  $_, "\n" foreach @main::libflags;
+        #print "libsources: ",  $_, "\n" foreach @main::libsources;
         #print "pkg_check_modules: ",  $_, "\n" foreach @main::pkg_check_modules;
         return 1;
     }
