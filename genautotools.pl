@@ -112,7 +112,13 @@ sub output {
 
         $doc .= "${tagname}_CPPFLAGS =" . $includes . " \$(CPPFLAGS)\n";
         $doc .= "${tagname}_SOURCES = @$files\n";
-        $doc .= "${tagname}_LDFLAGS = \n";
+        $doc .= "${tagname}_LDFLAGS = ";
+
+        if(@main::am_ldflags) {
+            foreach (@main::am_ldflags) {
+                $doc .= " $_";
+            }
+        }
     }
 
     open(FILE, "> $makefile");
