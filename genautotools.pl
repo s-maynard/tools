@@ -106,7 +106,13 @@ sub output {
 
         if(main::haveIncDirs()) {
             foreach (@main::incdirs) {
-                $includes .= " -I\$(top_builddir)/$_"
+                my @chars = split("", $_);
+
+                if ($chars[0] eq '/') {
+                    $includes .= " -I$_"
+                } else {
+                    $includes .= " -I\$(top_builddir)/$_"
+                }
             }
         }
 
