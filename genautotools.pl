@@ -96,12 +96,16 @@ sub output {
     $tagname =~ s/\./_/g;
 
     if($this->hasFile()) {
-        if((my $index = main::contains(\@main::exedirs, $this->{name})) != -1) {
-            $tagname = $main::exenames[$index];
+        my $i = 0;
+
+        if(($i = main::contains(\@main::exedirs, $this->{name})) != -1) {
+            $tagname = $main::exenames[$i];
             $doc .= "bin_PROGRAMS = $tagname\n";
+        } elsif (($i = main::contains(\@main::libdirs, $this->{name})) != -1) {
+            $tagname = $main::libnames[$i] . "_la";
+            $doc .= "\nlib_LTLIBRARIES = $main::libnames[$i].la\n";
         } else {
-            $doc .= "noinst_LTLIBRARIES = $name\n";
-            $doc .= "${tagname}dir = \$(top_builddir)/.libs\n";
+            $doc .= "\nnoinst_LTLIBRARIES = $name\n";
         }
 
         if(main::haveIncDirs()) {
@@ -194,6 +198,8 @@ package main;
 
 @main::exedirs = ();
 @main::exenames = ();
+@main::libdirs = ();
+@main::libnames = ();
 @main::incdirs = ();
 @main::includes = ();
 @main::excludes = ();
@@ -346,6 +352,7 @@ sub write_configure_ac {
     print CFG "\nAM_INIT_AUTOMAKE";
     print CFG "\nLT_INIT";
     print CFG "\n";
+    print CFG "\nAC_PREFIX_DEFAULT(`pwd`)";
     print CFG "\nAC_ENABLE_SHARED";
     print CFG "\nAC_DISABLE_STATIC";
     print CFG "\n";
@@ -463,6 +470,20 @@ sub read_ini {
             }
         }
 
+        if (my @string = $cfg->param("libdirs")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to libdirs\n";
+                push(@main::libdirs, $_);
+            }
+        }
+
+        if (my @string = $cfg->param("libnames")) {
+            foreach (@string) {
+                print "- adding " . $_ . " to libnames\n";
+                push(@main::libnames, $_);
+            }
+        }
+
         if (my @string = $cfg->param("incdirs")) {
             foreach (@string) {
                 print "- adding " . $_ . " to incdirs\n";
@@ -568,6 +589,8 @@ sub read_ini {
 
         #print "exedirs: ", $_, "\n" foreach @main::exedirs;
         #print "exenames: ", $_, "\n" foreach @main::exenames;
+        #print "libdirs: ", $_, "\n" foreach @main::libdirs;
+        #print "libnames: ", $_, "\n" foreach @main::libnames;
         #print "incdirs: ", $_, "\n" foreach @main::incdirs;
         #print "includes: ",  $_, "\n" foreach @main::includes;
         #print "excludes: ",  $_, "\n" foreach @main::excludes;
