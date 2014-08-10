@@ -417,6 +417,26 @@ sub append_main_makefile_am {
     my ($writers) = @_;
     open(MFILE, ">> Makefile.am");
     print MFILE "\nlib_LTLIBRARIES=lib$main::libname.la";
+    print MFILE "\nlib" . $main::libname . "_la_CPPFLAGS=";
+
+    if(@main::am_cflags) {
+        foreach (@main::am_cflags) {
+            print MFILE " $_";
+        }
+    }
+
+    if(main::haveIncDirs()) {
+        foreach (@main::incdirs) {
+            my @chars = split("", $_);
+
+            if ($chars[0] eq '/') {
+                print MFILE " -I$_"
+            } else {
+                print MFILE " -I\$(top_builddir)/$_"
+            }
+        }
+    }
+
     print MFILE "\nlib" . $main::libname . "_la_LDFLAGS=";
 
     if(@main::libflags) {
