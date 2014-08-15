@@ -2,6 +2,14 @@
 
 #
 # autotools file generator
+#
+# This script will generate autogen.sh, configure.ac, and Makefile.am files.
+# If there are subdirectories, it will recurse into those and create the
+# appropriate Makefile.am in each.
+#
+# The genautotools.ini companion file determines script execution and how it
+# will handle the directories it recurses into (see the comments in the example
+# genautotools.ini file provided.
 # 
 
 use Cwd;
@@ -12,11 +20,13 @@ use strict;
 use warnings;
 
 use Env qw(HOME);
-use lib "$HOME/perl5/lib/perl5";
-use Config::Simple;
+use lib "$HOME/perl5/lib/perl5"; # only required if cpan doesn't install in /usr
+use Config::Simple;              # non-standard package use cpan Config::Simple
 
+# FileWriter is the object that gets created for each directory recursed into
 package FileWriter;
 
+# FileWriter is created on-the-fly in recurse with this method
 sub new {
     my $class = shift;
     my($name, $path) = @_;
@@ -29,18 +39,21 @@ sub new {
     return bless $this, $class;
 }
 
+# FileWriter helper to add files to itself
 sub addFile {
     my $this = shift;
     my ($file) = @_;
     push(@{$this->{files}}, $file);
 }
 
+# FileWriter helper to add directories to itself
 sub addDir {
     my $this = shift;
     my ($dir) = @_;
     push(@{$this->{dirs}}, $dir);
 }
 
+# FileWriter helper to add include directories to itself
 sub addIncDir {
     my $this = shift;
     my ($file) = @_;
@@ -49,6 +62,7 @@ sub addIncDir {
     push(@{main::incdirs}, $dir);
 }
 
+# FileWriter method to generate Makefile.am files at each level recursed
 sub output {
     my $this = shift;
     my $files = $this->{files};
@@ -115,7 +129,7 @@ sub output {
                 if ($chars[0] eq '/') {
                     $includes .= " -I$_"
                 } else {
-                    $includes .= " -I\$(top_builddir)/$_"
+                    $includes .= " -I\$(top_srcdir)/$_"
                 }
             }
         }
@@ -150,7 +164,7 @@ sub getLibPath {
 sub getIncfilePath {
     my $this = shift;
     my $path = File::Spec->canonpath($this->{path});
-    return "\$(top_builddir)/$path/$this->{incdir}";
+    return "\$(top_srcdir)/$path/$this->{incdir}";
 }
 
 sub getMakefilePath {
@@ -333,6 +347,7 @@ sub write_autogen_sh {
     print AGEN "\n";
     close(AGEN);
     qx(chmod a+x autogen.sh);
+    qx(touch NEWS README AUTHORS);
 }
 
 sub write_configure_ac {
@@ -432,7 +447,7 @@ sub append_main_makefile_am {
             if ($chars[0] eq '/') {
                 print MFILE " -I$_"
             } else {
-                print MFILE " -I\$(top_builddir)/$_"
+                print MFILE " -I\$(top_srcdir)/$_"
             }
         }
     }
