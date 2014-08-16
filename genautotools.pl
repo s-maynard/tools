@@ -1,6 +1,6 @@
 #! /usr/bin/perl
 
-#
+# #
 # autotools file generator
 #
 # This script will generate autogen.sh, configure.ac, and Makefile.am files.
@@ -11,6 +11,17 @@
 # will handle the directories it recurses into (see the comments in the example
 # genautotools.ini file provided.
 # 
+# you should be able to execute:
+# 
+# genautotools.pl
+# ./autogen.sh
+# make
+# make install
+#
+# Issues, comments, and patches are welcome at github.com/s-maynard/tools
+#
+# #
+
 
 use Cwd;
 use Env;
@@ -26,7 +37,7 @@ use Config::Simple;              # non-standard package use cpan Config::Simple
 # FileWriter is the object that gets created for each directory recursed into
 package FileWriter;
 
-# FileWriter is created on-the-fly in recurse with this method
+# FileWriter objects are created on-the-fly in recurse with this method
 sub new {
     my $class = shift;
     my($name, $path) = @_;
@@ -39,14 +50,14 @@ sub new {
     return bless $this, $class;
 }
 
-# FileWriter helper to add files to itself
+# FileWriter helper to add files (of type 'extension') to itself
 sub addFile {
     my $this = shift;
     my ($file) = @_;
     push(@{$this->{files}}, $file);
 }
 
-# FileWriter helper to add directories to itself
+# FileWriter helper to add directories (if not excluded) to itself
 sub addDir {
     my $this = shift;
     my ($dir) = @_;
@@ -150,23 +161,27 @@ sub output {
     close FILE;
 }
 
+# FileWriter helper to determine validity of a directory for output
 sub isValid {
     my $this = shift;
     return $this->hasFile() || $this->hasDir();
 }
 
+# FileWriter helper to return the path of the library in string form
 sub getLibPath {
     my $this = shift;
     my $path = File::Spec->canonpath($this->{path});
     return "$path/" . $this->getLibName();
 }
 
+# FileWriter helper to return the path of the include in string form
 sub getIncfilePath {
     my $this = shift;
     my $path = File::Spec->canonpath($this->{path});
     return "\$(top_srcdir)/$path/$this->{incdir}";
 }
 
+# FileWriter helper to return the path of the Makefile in string form
 sub getMakefilePath {
     my $this = shift;
     my $path = File::Spec->canonpath($this->{path});
@@ -178,23 +193,27 @@ sub getMakefilePath {
     }
 }
 
+# FileWriter helper to if this dir should be processed
 sub hasLib {
     my $this = shift;
     return !$this->isRoot() && $this->hasFile();
 }
 
+# FileWriter helper to if this dir has files
 sub hasFile {
     my $this = shift;
     my $files = $this->{files};
     return ($#$files >= 0);
 }
 
+# FileWriter helper to if this dir has subdirs
 sub hasDir {
     my $this = shift;
     my $dirs = $this->{dirs};
     return ($#$dirs >= 0);
 }
 
+# FileWriter helper to format the library name
 sub getLibName {
     my $this = shift;
     my $name = "$this->{name}";
@@ -202,57 +221,120 @@ sub getLibName {
     return "lib$this->{extra_tag}${name}.la";
 }
 
+# FileWriter helper to determine if this is the root directory
 sub isRoot {
     my $this = shift;
     return $this->{name} eq "";
 }
 
 
+# The beginning of main()
 package main;
 
+# our global vars owned by main...
+#
+# exedirs and names are parallel arrays. As the script recurses through the
+# directory structure if a directory name matches an exedir name that
+# Makefile.am will be setup for a bin_PROGRAM. The name of the binary
+# will be the parallel exename.
 @main::exedirs = ();
 @main::exenames = ();
+
+# libdirs and names are parallel arrays. As the script recurses through the
+# directory structure if a directory name matches an libdir name that
+# Makefile.am will be setup for a lib_LTLIBRARY. The name of the library
+# will be the parallel libname.
 @main::libdirs = ();
 @main::libnames = ();
-@main::incdirs = ();
+
+# includes are a list of directories you wish the script to add to the
+# CPPFLAGS each with a "-I<path>/<include[i]"
 @main::includes = ();
+
+# incdirs are subdirectories to be specifically added as includes where
+# their path may not be parsed or their name may not match the includes
+# pattern above.
+@main::incdirs = ();
+
+# excludes are a list of directories you wish the script to ignore
 @main::excludes = ();
+
+# extensions are the source file extensions you wish the script to process
 @main::extensions = ();
-@main::am_cflags = ();
-@main::am_ldflags = ();
+
+# ac_progs are the AC_PROG_* values to be placed in configure.ac
 @main::ac_progs = ();
+
+# am_progs are the AM_PROG_* values to be placed in configure.ac
 @main::am_progs = ();
+
+# ac_types are the AC_TYPE_* values to be tested in configure.ac
 @main::ac_types = ();
+
+# ac_funcs are the AC_FUNC_* values to be tested in configure.ac
 @main::ac_funcs = ();
+
+# am_cflags are the AM_CFLAGS values to be placed in all Makefile.am
+@main::am_cflags = ();
+
+# am_ldflags are the AM_LDFLAGS values to be placed in all Makefile.am
+@main::am_ldflags = ();
+
+# addlibs are library files to be added to top-most <libname>_la_DEPENDENCIES
 @main::addlibs = ();
-@main::libflags = ();
-@main::libsources = ();
-@main::pkg_check_modules = ();
+
+# libname becomes the top-most library name as in <libname>_la_SOURCES
+# if commented out (#libname)in ini file, no top-most library will be built.
 $main::libname = "your_name_goes_here";
+
+# libflags are assigned to top-most <libname>_la_LDFLAGS 
+@main::libflags = ();
+
+# libsources are assigned to top-most <libname>_la_SOURCES 
+@main::libsources = ();
+
+# pkg_check_modules are the PKG_CHECK_MODULE values to be placed in configure.ac
+@main::pkg_check_modules = ();
+
+# the directory we were invoked from
 $main::invokedir = basename(Cwd::realpath(File::Spec->curdir()));
 
+# if a configure.ac file exists - don't run; make user remove to run (safety)
 if (-e "configure.ac") {
     print "\n\7\nconfigure.ac exists - exiting\n\n";
     exit -1;
 }
 
+# read in all variable defaults from ini file
 read_ini();
+
+# create the ./autogen.sh script
 write_autogen_sh();
 
+# create an empty array to hold the FileWriters recurse builds
 my @writers = ();
+
+# and the work begins here...
+# call recurse for this directory (and it will recurse into the tree)
 recurse(\@writers, "", ".");
 
+# all FileWriters have been created in recurse and now we can process them
+# for Makefile.am output...
 foreach my $writer(@writers) {
     $writer->output();
 }
 
+# create the ./configure.ac file
 write_configure_ac(\@writers);
 
+# if we have a valid top-most libname, append this Makefile.am with the
+# required values
 if ($main::libname ne "your_name_goes_here") {
     append_main_makefile_am(\@writers);
 }
 
 
+# Main helper to process a directory - careful, it's reentrant
 sub recurse {
     my ($writers, $name, $path) = @_;
     opendir(DIR, $path);
@@ -260,16 +342,20 @@ sub recurse {
     closedir(DIR);
     my $writer = new FileWriter($name, $path);
 
+    # for each file or directory in the current dir we're parsing...
     foreach my $file(@file) {
 
+        # avoid infinite recursion!
         if($file eq "." || $file eq "..") {
             next;
         }
 
+        # is this an exclude dir or file? if so ignore it
         if(contains(\@main::excludes, $file) != -1) {
             next;
         }
 
+        # is this an include dir? if so add it
         if(contains(\@main::includes, $file) != -1) {
             $writer->addIncDir($file);
             next;
@@ -277,11 +363,14 @@ sub recurse {
 
         my $newPath = "$path/$file";
 
+        # is this a directory? if so add it
         if(-d $newPath) {
+            # does this dir have a subdir (determined in recursive call)
             if(&recurse($writers, $file, $newPath)) {
                 $writer->addDir($file);
             }
         }
+        # is this a file(.extension)? if so add it
         elsif(hasExtension(\@main::extensions, $file)) {
             $writer->addFile($file);
         }
@@ -289,13 +378,18 @@ sub recurse {
 
     my $valid = $writer->isValid();
 
+    # was this directory valid? (has subdir or file), if so, put it in our
+    # array of FileWriters
     if($valid) {
         push(@$writers, $writer);
     }
 
+    # return the validity of this directory (potentially to itself - breaking
+    # the recursive decent if invalid)
     return $valid;
 }
 
+# Main helper to determine if this file extension matches the ones we want
 sub hasExtension {
     my($exts, $target) = @_;
 
@@ -308,6 +402,7 @@ sub hasExtension {
     return 0;
 }
 
+# Main helper to determine if the string provided is in the array provided
 sub contains($$) {
     my($array, $target) = @_;
     my $index = 0;
@@ -322,11 +417,14 @@ sub contains($$) {
     return -1;
 }
 
+# Main helper to flag if we have extra include directories to add
 sub haveIncDirs {
     return (@main::incdirs);
 }
 
+# Main helper to create the ./autogen.sh script
 sub write_autogen_sh {
+    # Pretty much doesn't need to change - simple autoreconf invocation
     open(AGEN, "> autogen.sh");
     print AGEN "#!/bin/sh";
     print AGEN "\n# Run this to generate all the initial makefiles, etc.";
@@ -350,6 +448,7 @@ sub write_autogen_sh {
     qx(touch NEWS README AUTHORS);
 }
 
+# Main helper to create the ./configure.ac file
 sub write_configure_ac {
     my ($writers) = @_;
     open(CFG, "> configure.ac");
@@ -358,6 +457,7 @@ sub write_configure_ac {
     print CFG "\n#\n";
     print CFG "\nAC_PREREQ([2.65])";
 
+    # if libname is set use it; otherwise use the directory name
     if ($main::libname ne "your_name_goes_here") {
         print CFG "\nAC_INIT([$main::libname], [1.0], [BUG-REPORT-ADDRESS])";
     } else {
@@ -368,6 +468,7 @@ sub write_configure_ac {
     print CFG "\nLT_INIT";
     print CFG "\n";
     print CFG "\nAC_PREFIX_DEFAULT(`pwd`)";
+    # TODO: make these next two ini vars
     print CFG "\nAC_ENABLE_SHARED";
     print CFG "\nAC_DISABLE_STATIC";
     print CFG "\n";
@@ -389,6 +490,7 @@ sub write_configure_ac {
     }
 
     print CFG "\n\n# Checks for header files.";
+    # TODO: make these ini vars
     print CFG "\nAC_CHECK_HEADERS([stdlib.h string.h unistd.h])";
     print CFG "\n";
     print CFG "\n# Checks for typedefs, structures, and compiler characteristics.";
@@ -418,6 +520,7 @@ sub write_configure_ac {
     print CFG "\n";
     print CFG "\nAC_CONFIG_FILES(\n";
 
+    # output the Makefiles we want to process
     foreach my $writer(@writers) {
         print CFG "\t" . $writer->getMakefilePath() . "\n";
     }
@@ -428,6 +531,7 @@ sub write_configure_ac {
     close(CFG);
 }
 
+# Main helper to append top-most Makefile.am with the lib_LTLIBRARY vars
 sub append_main_makefile_am {
     my ($writers) = @_;
     open(MFILE, ">> Makefile.am");
@@ -485,6 +589,7 @@ sub append_main_makefile_am {
     close(MFILE);
 }
 
+# Main helper to read in all variable defaults from ini file
 sub read_ini {
     my $cfg = new Config::Simple("genautotools.ini");
 
