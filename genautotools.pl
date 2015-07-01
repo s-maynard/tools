@@ -445,7 +445,7 @@ sub write_autogen_sh {
     print AGEN "\n";
     close(AGEN);
     qx(chmod a+x autogen.sh);
-    qx(touch NEWS README AUTHORS);
+    qx(touch NEWS README AUTHORS ChangeLog);
 }
 
 # Main helper to create the ./configure.ac file
